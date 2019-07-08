@@ -1,0 +1,11 @@
+service Features {
+    rpc GetFeatures (FeaturesRequest) returns (stream Feature) {}
+}
+
+message Feature {
+
+}
+
+message FeaturesRequest {
+
+}
