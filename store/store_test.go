@@ -73,8 +73,13 @@ func TestGetNonExistingFeature(t *testing.T) {
 
 	got, err := store.GetFeature("invalid-key")
 
-	if err != nil {
-		t.Errorf("got error '%s'", err)
+	if err == nil {
+		t.Errorf("should've gotten NotFound error")
+	} else {
+		_, ok := err.(features.NotFoundError)
+		if !ok {
+			t.Errorf("should've gotten NotFound error: '%s'", err)
+		}
 	}
 
 	if got != nil {
@@ -98,11 +103,21 @@ func TestCreateStoreInvalidAddress(t *testing.T) {
 	}
 }
 
-func createStore() FeatureCrudifier {
+func TestRedisStoreCompliesToFeatureCrudifier(t *testing.T) {
+	store, _ := NewRedisStore("test", "localhost:6379")
+	var i interface{} = store
+	_, ok := i.(features.FeatureCrudifier)
+
+	if !ok {
+		t.Error("RedisStore does not comply to FeatureCrudifier interface")
+	}
+}
+
+func createStore() *RedisStore {
 	store, _ := NewRedisStore("test", "localhost:6379")
 	return store
 }
 
-func cleanupStore(s FeatureCrudifier) {
-	// s.deleteAll()
+func cleanupStore(s *RedisStore) {
+	s.deleteAll()
 }

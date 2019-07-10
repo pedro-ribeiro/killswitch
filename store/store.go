@@ -12,13 +12,7 @@ type RedisStore struct {
 	name   string
 }
 
-type FeatureCrudifier interface {
-	GetFeature(key string) (*features.Feature, error)
-	UpsertFeature(features.Feature) (*features.Feature, error)
-	deleteAll() error
-}
-
-func NewRedisStore(name string, address string) (FeatureCrudifier, error) {
+func NewRedisStore(name string, address string) (*RedisStore, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: address,
 	})
@@ -71,7 +65,7 @@ func (s *RedisStore) GetFeature(key string) (*features.Feature, error) {
 	}
 
 	if len(result) == 0 {
-		return nil, nil
+		return nil, features.NotFoundError{}
 	}
 
 	boolValue, err := strconv.ParseBool(result["isActive"])
@@ -83,7 +77,7 @@ func (s *RedisStore) GetFeature(key string) (*features.Feature, error) {
 	return &features.Feature{
 		Key:         result["key"],
 		Description: result["description"],
-		IsActive:    bool(boolValue),
+		IsActive:    boolValue,
 	}, nil
 }
 
