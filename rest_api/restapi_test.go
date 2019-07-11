@@ -18,7 +18,7 @@ func TestShouldReturnFeatureOnExistingKey(t *testing.T) {
 
 	var got FeatureGetterResponse
 
-	got, err := getFeatureFromStore(store, &featureGetterRequest{fixture.Key})
+	got, err := getFeatureFromStore(store, &FeatureGetterRequest{fixture.Key})
 
 	if err != nil {
 		t.Errorf("Unexpected error: '%s'", err)
@@ -32,19 +32,39 @@ func TestShouldReturnFeatureOnExistingKey(t *testing.T) {
 func TestShouldReturnNotFoundErrorOnNonExistingKey(t *testing.T) {
 	store := &alwaysFailureFeaturesStore{}
 
-	_, err := getFeatureFromStore(store, &featureGetterRequest{"some-key"})
+	_, err := getFeatureFromStore(store, &FeatureGetterRequest{"some-key"})
 
 	if err == nil {
 		t.Errorf("Expected a NotFound error")
 	} else {
-		_, ok := err.(FeatureNotFoundError)
+		_, ok := err.(RestNotFoundError)
 		if !ok {
 			t.Errorf("Expected a FeatureNotFound error '%s'", err)
 		}
 	}
 }
 
+func TestShouldCreateEntryInStoreOnFeatureCreate(t *testing.T) {
+	store := &alwaysSuccessFeaturesStore{}
+
+	_, err := upsertFeatureInStore(store,
+		&FeatureUpsertRequest{
+			Description: "a description",
+			Key:         "my-key",
+			IsActive:    true,
+		})
+
+	if err != nil {
+		t.Errorf("Did not expect an error '%s'", err)
+	}
+
+	if _, ok := store.storage["my-key"]; !ok {
+		t.Errorf("Store did not save the feature!")
+	}
+}
+
 type alwaysSuccessFeaturesStore struct {
+	storage map[string](*features.Feature)
 }
 
 func (store *alwaysSuccessFeaturesStore) getUniqueFeature() *features.Feature {
@@ -60,6 +80,11 @@ func (store *alwaysSuccessFeaturesStore) GetFeature(key string) (*features.Featu
 }
 
 func (store *alwaysSuccessFeaturesStore) UpsertFeature(feature features.Feature) (*features.Feature, error) {
+	if store.storage == nil {
+		storage := make(map[string](*features.Feature))
+		store.storage = storage
+	}
+	store.storage[feature.Key] = &feature
 	return &feature, nil
 }
 

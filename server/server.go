@@ -2,14 +2,21 @@ package main
 
 import (
 	restapi "killswitch/rest_api"
+	"killswitch/store"
 	"log"
 )
 
 func main() {
 	failed := make(chan bool, 1)
+	store, err := store.NewRedisStore("featurestore", "localhost:6379")
+
+	if err != nil {
+		log.Fatalf("Could not initialize feature store: %s", err)
+		panic(err)
+	}
 
 	//REST
-	restapi.BindAPI("8080", failed)
+	restapi.BindAPI("8080", store, failed)
 	// err := rest_api.BindAPI("8080")
 
 	//gRPC
