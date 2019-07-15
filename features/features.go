@@ -5,9 +5,10 @@ type Feature struct {
 	IsActive         bool
 }
 
-type FeatureCrudifier interface {
-	GetFeature(key string) (*Feature, error)
-	UpsertFeature(Feature) (*Feature, error)
+type FeatureStore interface {
+	GetFeatureByKey(key string) (Feature, error)
+	UpsertFeature(value Feature) (Feature, error)
+	GetAllFeatures() (map[string]Feature, error)
 }
 
 type NotFoundError struct {

@@ -10,12 +10,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func BindAPI(port string, store features.FeatureCrudifier, failed chan bool) {
+func BindAPI(port string, store features.FeatureStore, failed chan bool) {
 	log.Println("Starting REST API")
 
 	router := mux.NewRouter()
 	router.HandleFunc("/features/{key}", func(w http.ResponseWriter, r *http.Request) { featureGetter(store, w, r) }).Methods("GET")
-	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { featureUpserter(store, w, r) }).Methods("POST")
+	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { allFeaturesGetter(store, w, r) }).Methods("GET")
+	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { featureUpserter(store, w, r) }).Methods("PUT")
 
 	go func() {
 		log.Fatal(http.ListenAndServe(":"+port, router))
@@ -31,10 +32,14 @@ type FeatureGetterRequest struct {
 	key string
 }
 
-type FeatureGetterResponse struct {
+type FeatureResponse struct {
 	Key         string `json:"key"`
 	Description string `json:"description"`
 	IsActive    bool   `json:"isActive"`
+}
+
+type AllFeaturesGetterResponse struct {
+	Results map[string]FeatureResponse `json:"results"`
 }
 
 type FeatureUpsertRequest struct {
@@ -43,20 +48,11 @@ type FeatureUpsertRequest struct {
 	IsActive    bool   `json:"isActive"`
 }
 
-type FeatureUpsertResponse struct {
-	Key         string `json:"key"`
-	Description string `json:"description"`
-	IsActive    bool   `json:"isActive"`
-}
-
-func featureGetter(store features.FeatureCrudifier, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	featureKey := vars["key"]
-
-	response, err := getFeatureFromStore(store, &FeatureGetterRequest{featureKey})
+func allFeaturesGetter(store features.FeatureStore, w http.ResponseWriter, r *http.Request) {
+	response, err := getAllFeaturesFromStore(store)
 
 	if err != nil {
-		log.Printf("Could not retrieve feature with key '%s'\n", featureKey)
+		fmt.Errorf("Could not retrieve all features")
 		answerWithError(w, err)
 		return
 	}
@@ -64,13 +60,28 @@ func featureGetter(store features.FeatureCrudifier, w http.ResponseWriter, r *ht
 	answerWithOk(w, response)
 }
 
-func featureUpserter(store features.FeatureCrudifier, w http.ResponseWriter, r *http.Request) {
+func featureGetter(store features.FeatureStore, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	featureKey := vars["key"]
+
+	response, err := getFeatureFromStore(store, &FeatureGetterRequest{featureKey})
+
+	if err != nil {
+		fmt.Errorf("Could not retrieve feature with key '%s'\n", featureKey)
+		answerWithError(w, err)
+		return
+	}
+
+	answerWithOk(w, response)
+}
+
+func featureUpserter(store features.FeatureStore, w http.ResponseWriter, r *http.Request) {
 	upsertRequest := FeatureUpsertRequest{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&upsertRequest)
 
 	if err != nil {
-		log.Printf("Could not unmarshal request: %s", err)
+		fmt.Errorf("Could not unmarshal request: %s", err)
 		answerWithError(w, err)
 		return
 	}
@@ -78,7 +89,7 @@ func featureUpserter(store features.FeatureCrudifier, w http.ResponseWriter, r *
 	response, err := upsertFeatureInStore(store, &upsertRequest)
 
 	if err != nil {
-		log.Printf("Could not upsert feature: %s", err)
+		fmt.Errorf("Could not upsert feature: %s", err)
 		answerWithError(w, err)
 		return
 	}
@@ -86,23 +97,35 @@ func featureUpserter(store features.FeatureCrudifier, w http.ResponseWriter, r *
 	answerWithOk(w, response)
 }
 
-func getFeatureFromStore(store features.FeatureCrudifier, request *FeatureGetterRequest) (FeatureGetterResponse, error) {
-	feature, err := store.GetFeature(request.key)
+func getFeatureFromStore(store features.FeatureStore, request *FeatureGetterRequest) (FeatureResponse, error) {
+	feature, err := store.GetFeatureByKey(request.key)
 
 	if err != nil {
 		if _, ok := err.(features.NotFoundError); ok {
-			return FeatureGetterResponse{}, RestNotFoundError{fmt.Sprintf("Did not find feature with key '%s'", request.key)} //FIXME: should I be returning a reference here? I'd rather have it be a VO
+			return FeatureResponse{}, RestNotFoundError{fmt.Sprintf("Did not find feature with key '%s'", request.key)} //FIXME: should I be returning a reference here? I'd rather have it be a VO
 		}
 	}
 
-	return FeatureGetterResponse{
-		Key:         feature.Key,
-		Description: feature.Description,
-		IsActive:    feature.IsActive,
-	}, nil
+	return responseFromFeature(feature), nil
 }
 
-func upsertFeatureInStore(store features.FeatureCrudifier, request *FeatureUpsertRequest) (FeatureUpsertResponse, error) {
+func getAllFeaturesFromStore(store features.FeatureStore) (AllFeaturesGetterResponse, error) {
+	values, err := store.GetAllFeatures()
+
+	if err != nil {
+		return AllFeaturesGetterResponse{}, err
+	}
+
+	results := make(map[string]FeatureResponse)
+
+	for k, f := range values {
+		results[k] = responseFromFeature(f)
+	}
+
+	return AllFeaturesGetterResponse{results}, nil
+}
+
+func upsertFeatureInStore(store features.FeatureStore, request *FeatureUpsertRequest) (FeatureResponse, error) {
 	feature, err := store.UpsertFeature(features.Feature{
 		Key:         request.Key,
 		Description: request.Description,
@@ -110,14 +133,18 @@ func upsertFeatureInStore(store features.FeatureCrudifier, request *FeatureUpser
 	})
 
 	if err != nil {
-		return FeatureUpsertResponse{}, err
+		return FeatureResponse{}, err
 	}
 
-	return FeatureUpsertResponse{
-		Key:         feature.Key,
-		Description: feature.Description,
-		IsActive:    feature.IsActive,
-	}, nil
+	return responseFromFeature(feature), nil
+}
+
+func responseFromFeature(value features.Feature) FeatureResponse {
+	return FeatureResponse{
+		Key:         value.Key,
+		Description: value.Description,
+		IsActive:    value.IsActive,
+	}
 }
 
 func answerWithOk(w http.ResponseWriter, okResponse interface{}) {

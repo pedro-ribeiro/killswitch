@@ -26,7 +26,7 @@ func TestCreateFeature(t *testing.T) {
 		t.Errorf("got error '%s'", err)
 	}
 
-	if got == nil || *got != want {
+	if /*got == nil ||*/ got != want {
 		t.Errorf("return value does not match")
 	}
 
@@ -49,14 +49,56 @@ func TestGetExistingFeature(t *testing.T) {
 	store.UpsertFeature(want)
 	//end setup
 
-	got, err := store.GetFeature("new-key")
+	got, err := store.GetFeatureByKey("new-key")
 
 	if err != nil {
 		t.Errorf("got error '%s'", err)
 	}
 
-	if got == nil || *got != want {
+	if /*got == nil ||*/ got != want {
 		t.Errorf("return value does not match")
+	}
+
+	//teardown
+	cleanupStore(store)
+}
+
+func TestGetAllFeatures(t *testing.T) {
+	//begin setup
+	store := createStore()
+
+	want1 := features.Feature{
+		Key:         "new-key1",
+		Description: "a new and fancy feature",
+		IsActive:    false,
+	}
+	store.UpsertFeature(want1)
+
+	want2 := features.Feature{
+		Key:         "new-key2",
+		Description: "an even fancier feature",
+		IsActive:    true,
+	}
+	store.UpsertFeature(want2)
+	//end setup
+
+	got, err := store.GetAllFeatures()
+
+	if err != nil {
+		t.Errorf("got error '%s'", err)
+	}
+
+	if got == nil || len(got) != 2 {
+		t.Errorf("return value is nil or wrong size")
+		return
+	}
+
+	if val, ok := got[want1.Key]; !ok || val != want1 {
+		t.Errorf("did not contain '%s' or want different from expected", want1.Key)
+	}
+
+	if val, ok := got[want2.Key]; !ok || val != want2 {
+		t.Errorf("did not contain '%s' or want different from expected", want2.Key)
 	}
 
 	//teardown
@@ -66,12 +108,13 @@ func TestGetExistingFeature(t *testing.T) {
 //TestGetAllWithNoFeatures
 //TestGetAllWithFeatures
 //TestDeleteFeature
+//TestUpsertValidations
 
 func TestGetNonExistingFeature(t *testing.T) {
 	//setup
 	store := createStore()
 
-	got, err := store.GetFeature("invalid-key")
+	_, err := store.GetFeatureByKey("invalid-key")
 
 	if err == nil {
 		t.Errorf("should've gotten NotFound error")
@@ -82,9 +125,9 @@ func TestGetNonExistingFeature(t *testing.T) {
 		}
 	}
 
-	if got != nil {
-		t.Errorf("feature should've been nil: '%s:%s'", got.Key, got.Description)
-	}
+	// if got != nil {
+	// 	t.Errorf("feature should've been nil: '%s:%s'", got.Key, got.Description)
+	// }
 }
 
 func TestCreateStoreValidAddress(t *testing.T) {
@@ -103,13 +146,13 @@ func TestCreateStoreInvalidAddress(t *testing.T) {
 	}
 }
 
-func TestRedisStoreCompliesToFeatureCrudifier(t *testing.T) {
+func TestRedisStoreCompliesToFeatureStore(t *testing.T) {
 	store, _ := NewRedisStore("test", "localhost:6379")
 	var i interface{} = store
-	_, ok := i.(features.FeatureCrudifier)
+	_, ok := i.(features.FeatureStore)
 
 	if !ok {
-		t.Error("RedisStore does not comply to FeatureCrudifier interface")
+		t.Error("RedisStore does not comply to FeatureStore interface")
 	}
 }
 
