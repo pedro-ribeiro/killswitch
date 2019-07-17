@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package grpcapi;
+
+service Features {
+    rpc GetFeatures (GrpcFeaturesRequest) returns (stream GrpcFeaturesResponse) {}
+}
+
+message GrpcFeaturesRequest {
+
+}
+
+message GrpcFeaturesResponse {
+    string key = 1;
+    string description = 2;
+    bool isActive = 3;
+}

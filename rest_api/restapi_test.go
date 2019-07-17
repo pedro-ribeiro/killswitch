@@ -55,7 +55,7 @@ func TestShouldReturnEmptyResponseOnEmptyStore(t *testing.T) {
 		t.Errorf("Did not expect an error")
 	}
 
-	if len(response.results) != 0 {
+	if len(response.Results) != 0 {
 		t.Errorf("Expected empty results")
 	}
 }
@@ -82,15 +82,15 @@ func TestShouldReturnTwoResults(t *testing.T) {
 		t.Errorf("Did not expect an error")
 	}
 
-	if len(response.results) != 2 {
+	if len(response.Results) != 2 {
 		t.Errorf("Expected empty results")
 	}
 
-	if val, ok := response.results[feat1.Key]; !ok || val.Key != feat1.Key {
+	if val, ok := response.Results[feat1.Key]; !ok || val.Key != feat1.Key {
 		t.Errorf("expected something similar to feature1")
 	}
 
-	if val, ok := response.results[feat2.Key]; !ok || val.Key != feat2.Key {
+	if val, ok := response.Results[feat2.Key]; !ok || val.Key != feat2.Key {
 		t.Errorf("expected something similar to feature2")
 	}
 }

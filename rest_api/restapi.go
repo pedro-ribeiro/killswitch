@@ -14,6 +14,7 @@ func BindAPI(port string, store features.FeatureStore, failed chan bool) {
 	log.Println("Starting REST API")
 
 	router := mux.NewRouter()
+	//FIXME: this is the result of using "static" methods
 	router.HandleFunc("/features/{key}", func(w http.ResponseWriter, r *http.Request) { featureGetter(store, w, r) }).Methods("GET")
 	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { allFeaturesGetter(store, w, r) }).Methods("GET")
 	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { featureUpserter(store, w, r) }).Methods("PUT")
@@ -76,6 +77,7 @@ func featureGetter(store features.FeatureStore, w http.ResponseWriter, r *http.R
 }
 
 func featureUpserter(store features.FeatureStore, w http.ResponseWriter, r *http.Request) {
+	//TODO: validations & co
 	upsertRequest := FeatureUpsertRequest{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&upsertRequest)
