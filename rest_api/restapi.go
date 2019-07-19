@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -20,7 +21,7 @@ func BindAPI(port string, store features.FeatureStore, failed chan bool) {
 	router.HandleFunc("/features", func(w http.ResponseWriter, r *http.Request) { featureUpserter(store, w, r) }).Methods("PUT")
 
 	go func() {
-		log.Fatal(http.ListenAndServe(":"+port, router))
+		log.Fatal(http.ListenAndServe(":"+port, handlers.CORS()(router)))
 		failed <- true
 	}()
 }
