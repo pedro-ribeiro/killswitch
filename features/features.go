@@ -9,6 +9,7 @@ type FeatureStore interface {
 	GetFeatureByKey(key string) (Feature, error)
 	UpsertFeature(value Feature) (Feature, error)
 	GetAllFeatures() (map[string]Feature, error)
+	SubscribeToUpdates() (chan Feature, error)
 }
 
 type NotFoundError struct {

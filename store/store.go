@@ -1,15 +1,20 @@
 package store
 
 import (
+	"fmt"
 	"killswitch/features"
 	"strconv"
+	"sync"
 
 	"github.com/go-redis/redis"
 )
 
 type RedisStore struct {
-	client *redis.Client
-	name   string
+	client        *redis.Client
+	name          string
+	updateChannel chan features.Feature
+	subscribers   []chan features.Feature
+	mux           sync.Mutex
 }
 
 func NewRedisStore(name string, address string) (*RedisStore, error) {
@@ -17,9 +22,32 @@ func NewRedisStore(name string, address string) (*RedisStore, error) {
 		Addr: address,
 	})
 
+	updateChannel := make(chan features.Feature)
+
 	_, err := client.Ping().Result()
 
-	return &RedisStore{client, name}, err
+	store := RedisStore{
+		client:        client,
+		name:          name,
+		updateChannel: updateChannel,
+		subscribers:   make([]chan features.Feature, 0)}
+
+	go store.notifySubscribers()
+
+	return &store, err
+}
+
+func (s *RedisStore) SubscribeToUpdates() (chan features.Feature, error) {
+	channel := make(chan features.Feature)
+
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.subscribers = append(s.subscribers, channel)
+
+	fmt.Printf("new subscriber!\n")
+
+	return channel, nil
 }
 
 func (s *RedisStore) GetAllFeatures() (map[string](features.Feature), error) {
@@ -93,6 +121,11 @@ func (s *RedisStore) UpsertFeature(feature features.Feature) (features.Feature, 
 		return features.Feature{}, err
 	}
 
+	select {
+	case s.updateChannel <- feature:
+	default:
+	}
+
 	return feature, nil
 }
 
@@ -125,4 +158,35 @@ func redisResultToFeature(result map[string]string) (features.Feature, error) {
 func (s *RedisStore) deleteAll() error {
 	//TODO: this must only delete the RedisStore#name namespace
 	return s.client.FlushAll().Err()
+}
+
+func (s *RedisStore) notifySubscribers() {
+	fmt.Printf("notify initialized!\n")
+	defer s.mux.Unlock()
+	for f := range s.updateChannel {
+		// for {
+		// 	var f features.Feature
+
+		// 	select {
+		// 	case f = <-s.updateChannel:
+		// 	default:
+		// 	}
+
+		fmt.Printf("new feature: %v\n", f)
+		s.mux.Lock()
+
+		fmt.Printf("lock acquired.\n")
+		for _, c := range s.subscribers {
+			fmt.Printf("notifying one subscriber\n")
+			select {
+			case c <- f:
+				fmt.Println("sent to subscriber")
+				continue
+			default:
+				fmt.Println("didnt send")
+			}
+		}
+
+		s.mux.Unlock()
+	}
 }

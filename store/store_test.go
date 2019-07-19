@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"killswitch/features"
 	"testing"
 )
@@ -34,6 +35,41 @@ func TestCreateFeature(t *testing.T) {
 	cleanupStore(store)
 }
 
+func TestSubscriberNotifiedOnCreateUpdate(t *testing.T) {
+	//setup
+	store := createStore()
+	feat := features.Feature{
+		Key:         "key",
+		Description: "a new and fancy feature",
+		IsActive:    false,
+	}
+	store.UpsertFeature(feat)
+
+	channel, err := store.SubscribeToUpdates()
+	fmt.Printf(">> received channel %v\n", channel)
+
+	if err != nil {
+		t.Errorf("got error '%s'", err)
+	}
+
+	feat = features.Feature{
+		Key:         "key",
+		Description: "a new and fancy feature",
+		IsActive:    true,
+	}
+	store.UpsertFeature(feat)
+
+	got := <-channel
+
+	if !got.IsActive {
+		t.Errorf("return value does not match")
+	}
+
+	//teardown
+	cleanupStore(store)
+}
+
+//Test for concurrency problems between getallfeatures & subscriber
 //TestUpdateFeature
 
 func TestGetExistingFeature(t *testing.T) {

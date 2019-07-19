@@ -31,13 +31,13 @@ func BindAPI(port string, store features.FeatureStore, failed chan bool) {
 }
 
 func (s *grpcServer) GetFeatures(request *GrpcFeaturesRequest, stream Features_GetFeaturesServer) error {
-	values, err := getFeaturesStream(s.store)
+	channel, err := getFeaturesStream(s.store)
 
 	if err != nil {
 		return err
 	}
 
-	for f := range values {
+	for f := range channel {
 		if err := stream.Send(messageFromFeature(f)); err != nil {
 			return err
 		}
@@ -57,6 +57,14 @@ func messageFromFeature(value features.Feature) *GrpcFeaturesResponse {
 func getFeaturesStream(store features.FeatureStore) (chan features.Feature, error) {
 	stream := make(chan features.Feature)
 	go func() {
+		channel, err := store.SubscribeToUpdates()
+
+		if err != nil {
+			fmt.Printf("could not subscribe to updates: %s", err)
+			close(stream)
+			return
+		}
+
 		values, err := store.GetAllFeatures()
 
 		if err != nil {
@@ -66,6 +74,10 @@ func getFeaturesStream(store features.FeatureStore) (chan features.Feature, erro
 		}
 
 		for _, f := range values {
+			stream <- f
+		}
+
+		for f := range channel {
 			stream <- f
 		}
 
